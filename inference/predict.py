@@ -21,8 +21,17 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def coco_pred_record(image_id: int, category_id: int, bbox_xywh: List[float], score: float) -> Dict[str, Any]:
-    return {"image_id": image_id, "category_id": category_id, "bbox": bbox_xywh, "score": float(score)}
+def coco_pred_record(
+    image_id: int,
+    category_id: int,
+    bbox_xywh: List[float],
+    score: float,
+    file_name: str | None = None,
+) -> Dict[str, Any]:
+    record = {"image_id": image_id, "category_id": category_id, "bbox": bbox_xywh, "score": float(score)}
+    if file_name:
+        record["file_name"] = file_name
+    return record
 
 
 def main() -> None:
@@ -56,7 +65,7 @@ def main() -> None:
                 bbox = [float(x1), float(y1), float(x2 - x1), float(y2 - y1)]
                 cls = int(b.cls[0].item())
                 score = float(b.conf[0].item())
-                preds.append(coco_pred_record(file_to_id[p.name], cls + 1, bbox, score))
+                preds.append(coco_pred_record(file_to_id[p.name], cls + 1, bbox, score, file_name=p.name))
 
     else:
         import torch
@@ -93,7 +102,7 @@ def main() -> None:
                         continue
                     cat_id = int(cls_to_cat_id.get(int(lab), int(lab)))
                     bbox = [float(x1), float(y1), float(x2 - x1), float(y2 - y1)]
-                    preds.append(coco_pred_record(file_to_id[p.name], cat_id, bbox, float(sc)))
+                    preds.append(coco_pred_record(file_to_id[p.name], cat_id, bbox, float(sc), file_name=p.name))
 
     out_path.write_text(json.dumps(preds, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Saved predictions: {out_path}")

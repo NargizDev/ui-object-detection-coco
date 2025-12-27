@@ -56,6 +56,14 @@ def build_hierarchy(predictions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return tree
 
 
+def image_key(pred: Dict[str, Any]) -> str:
+    file_name = pred.get("file_name")
+    if file_name:
+        return str(file_name)
+    image_id = pred.get("image_id")
+    return str(image_id)
+
+
 def main() -> None:
     args = parse_args()
     pred_path = Path(args.pred)
@@ -64,14 +72,14 @@ def main() -> None:
 
     preds: List[Dict[str, Any]] = json.loads(pred_path.read_text(encoding="utf-8"))
 
-    # Group by image_id
-    by_image: Dict[int, List[Dict[str, Any]]] = {}
+    # Group by file_name when present, otherwise by image_id.
+    by_image: Dict[str, List[Dict[str, Any]]] = {}
     for p in preds:
-        by_image.setdefault(int(p["image_id"]), []).append(p)
+        by_image.setdefault(image_key(p), []).append(p)
 
     hierarchical = {}
-    for img_id, img_preds in by_image.items():
-        hierarchical[img_id] = build_hierarchy(img_preds)
+    for img_key, img_preds in by_image.items():
+        hierarchical[img_key] = build_hierarchy(img_preds)
 
     out_path.write_text(json.dumps(hierarchical, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Saved hierarchical predictions: {out_path}")

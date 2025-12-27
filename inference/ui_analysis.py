@@ -12,7 +12,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--model", choices=["yolo", "fasterrcnn"], required=True)
     p.add_argument("--weights", required=True)
     p.add_argument("--out-dir", required=True, help="Output directory for results")
-    p.add_argument("--conf", type=float, default=0.25)
+    p.add_argument("--conf", type=float, default=0.1)
     return p.parse_args()
 
 
@@ -31,11 +31,11 @@ def main() -> None:
 
     # Predict baseline
     baseline_pred = out_dir / "baseline_pred.json"
-    run_cmd(f"python inference/predict.py --model {args.model} --weights {args.weights} --images {args.baseline_images} --out {baseline_pred} --conf {args.conf}")
+    run_cmd(f"python inference/predict.py --model yolo --weights runs/detect/train2/weights/best.pt --images {args.baseline_images} --out {baseline_pred} --conf {args.conf}")
 
     # Predict current
     current_pred = out_dir / "current_pred.json"
-    run_cmd(f"python inference/predict.py --model {args.model} --weights {args.weights} --images {args.current_images} --out {current_pred} --conf {args.conf}")
+    run_cmd(f"python inference/predict.py --model yolo --weights runs/detect/train2/weights/best.pt --images {args.current_images} --out {current_pred} --conf {args.conf}")
 
     # Postprocess baseline
     baseline_hier = out_dir / "baseline_hierarchical.json"
@@ -49,16 +49,26 @@ def main() -> None:
     diff = out_dir / "diff.json"
     run_cmd(f"python inference/compare.py --baseline {baseline_hier} --current {current_hier} --out {diff}")
 
-    # Visualize baseline
-    vis_baseline = out_dir / "vis_baseline"
-    run_cmd(f"python inference/visualize.py --images {args.baseline_images} --pred {baseline_hier} --out-dir {vis_baseline}")
+    # Image diff for visual changes
+    baseline_img_dir = Path(args.baseline_images)
+    current_img_dir = Path(args.current_images)
+    vis_diff_dir = out_dir / "vis_diff"
+    vis_diff_dir.mkdir(parents=True, exist_ok=True)
+    for current_img in current_img_dir.iterdir():
+        if current_img.is_file() and current_img.suffix.lower() in [".png", ".jpg", ".jpeg"]:
+            baseline_img = baseline_img_dir / current_img.name
+            if baseline_img.exists():
+                out_img = vis_diff_dir / current_img.name
+                run_cmd(f"python inference/image_diff.py --baseline {baseline_img} --current {current_img} --out {out_img}")
 
-    # Visualize current
-    vis_current = out_dir / "vis_current"
-    run_cmd(f"python inference/visualize.py --images {args.current_images} --pred {current_hier} --out-dir {vis_current} --diff {diff} --diff-only")
+    # Generate report
+    report = out_dir / "report.md"
+    run_cmd(f"python inference/report.py --diff {diff} --out {report}")
 
     print(f"Analysis complete. Results in {out_dir}")
     print(f"Diff: {diff}")
+    print(f"Visual diff: {vis_diff_dir}")
+    print(f"Report: {report}")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out-dir", required=True, help="Where to save visualized images")
     p.add_argument("--min-score", type=float, default=0.25)
     p.add_argument("--diff", help="Diff json to highlight changed elements in red")
-    p.add_argument("--diff-only", action="store_true", help="Draw only changed elements from diff")
+    p.add_argument("--diff-only", action="store_true", help="Draw only diff highlights without full tree")
+    p.add_argument("--diff-role", choices=["baseline", "current"], default="current", help="Which side to draw from diff")
     return p.parse_args()
 
 
@@ -39,19 +40,43 @@ def draw_tree(img, tree: List[Dict], level=0, min_score=0.25):
     return count
 
 
-def draw_changed(img, changed: List[Dict], min_score=0.25):
-    for item in changed:
-        if isinstance(item, dict) and 'baseline' in item:  # changed has baseline and current
-            element = item['current']
-        else:
-            element = item
+def draw_diff_elements(
+    img,
+    elements: List[Dict],
+    color,
+    label: str,
+    min_score=0.25,
+    role: str | None = None,
+):
+    count = 0
+    for item in elements:
+        element = item
+        if isinstance(item, dict) and ("baseline" in item or "current" in item):
+            if role:
+                element = item.get(role)
+            else:
+                element = item.get("current") or item.get("baseline")
+        if not element:
+            continue
         score = float(element.get("score", 0.0))
         if score < min_score:
             continue
         x, y, w, h = element["bbox"]
         x1, y1, x2, y2 = int(x), int(y), int(x + w), int(y + h)
-        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 3)  # Red, thicker
-        cv2.putText(img, "CHANGED", (x1, max(0, y1 - 20)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 3)
+        cv2.putText(img, label, (x1, max(0, y1 - 20)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+        count += 1
+    return count
+
+
+def resolve_key(data: Dict[str, List[Dict]], img_path: Path, idx: int) -> str | None:
+    name_key = img_path.name
+    if name_key in data:
+        return name_key
+    idx_key = str(idx)
+    if idx_key in data:
+        return idx_key
+    return None
 
 
 def main() -> None:
@@ -71,17 +96,50 @@ def main() -> None:
         if img is None:
             continue
 
-        tree = hierarchical.get(str(idx), [])
+        tree_key = resolve_key(hierarchical, img_path, idx)
+        tree = hierarchical.get(tree_key, []) if tree_key else []
         count = 0
         if not args.diff_only:
             count = draw_tree(img, tree, min_score=args.min_score)
-        if diff_data and str(idx) in diff_data:
-            changed = diff_data[str(idx)].get('changed', [])
-            draw_changed(img, changed, min_score=args.min_score)
-            count += len([c for c in changed if float(c.get('current', c).get("score", 0.0)) >= args.min_score])
-        print(f"Image {idx} ({img_path.name}): drew {count} elements")
+        if diff_data:
+            diff_key = resolve_key(diff_data, img_path, idx)
+            diff_entry = diff_data.get(diff_key) if diff_key else None
+            if diff_entry:
+                if args.diff_role == "baseline":
+                    removed = diff_entry.get("removed", [])
+                    changed = diff_entry.get("changed", [])
+                    count += draw_diff_elements(img, removed, (255, 0, 0), "REMOVED", min_score=args.min_score)
+                    count += draw_diff_elements(
+                        img,
+                        changed,
+                        (0, 0, 255),
+                        "CHANGED",
+                        min_score=args.min_score,
+                        role="baseline",
+                    )
+                else:
+                    added = diff_entry.get("added", [])
+                    changed = diff_entry.get("changed", [])
+                    count += draw_diff_elements(img, added, (0, 255, 255), "ADDED", min_score=args.min_score)
+                    count += draw_diff_elements(
+                        img,
+                        changed,
+                        (0, 0, 255),
+                        "CHANGED",
+                        min_score=args.min_score,
+                        role="current",
+                    )
 
-        cv2.imwrite(str(out_dir / img_path.name), img)
+        # Only save if there are diff changes
+        has_changes = False
+        if diff_data and diff_key and diff_entry:
+            has_changes = bool(diff_entry.get("added")) or bool(diff_entry.get("removed")) or bool(diff_entry.get("changed"))
+
+        if has_changes:
+            print(f"Image {idx} ({img_path.name}): drew {count} elements")
+            cv2.imwrite(str(out_dir / img_path.name), img)
+        else:
+            print(f"Image {idx} ({img_path.name}): no changes, skipped")
 
     print(f"Saved visualizations: {out_dir}")
 

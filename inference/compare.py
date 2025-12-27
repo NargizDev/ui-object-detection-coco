@@ -52,14 +52,14 @@ def main() -> None:
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    baseline: Dict[int, List[Dict[str, Any]]] = json.loads(baseline_path.read_text(encoding="utf-8"))
-    current: Dict[int, List[Dict[str, Any]]] = json.loads(current_path.read_text(encoding="utf-8"))
+    baseline: Dict[str, List[Dict[str, Any]]] = json.loads(baseline_path.read_text(encoding="utf-8"))
+    current: Dict[str, List[Dict[str, Any]]] = json.loads(current_path.read_text(encoding="utf-8"))
 
     diff = {}
-    for img_id in set(baseline) | set(current):
-        b_tree = baseline.get(img_id, [])
-        c_tree = current.get(img_id, [])
-        diff[img_id] = compare_trees(b_tree, c_tree)
+    for img_key in set(baseline) | set(current):
+        b_tree = baseline.get(img_key, [])
+        c_tree = current.get(img_key, [])
+        diff[img_key] = compare_trees(b_tree, c_tree)
 
     out_path.write_text(json.dumps(diff, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Saved diff: {out_path}")
