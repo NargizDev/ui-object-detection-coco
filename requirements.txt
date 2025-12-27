@@ -1,0 +1,21 @@
+# Core
+numpy>=1.24
+pillow>=10.0
+tqdm>=4.66
+pyyaml>=6.0
+
+# Visualization
+opencv-python>=4.8
+
+# YOLO (Ultralytics)
+ultralytics>=8.2.0
+
+# Faster R-CNN (Torch + TorchVision)
+# Install torch/torchvision separately for your OS/CUDA:
+# https://pytorch.org/get-started/locally/
+torchvision>=0.17
+torch>=2.2
+
+# Hugging Face dataset export (optional)
+datasets>=2.19
+huggingface_hub>=0.23

@@ -1,0 +1,11 @@
+[project]
+name = "ui-cvat-autolabel"
+version = "0.1.0"
+description = "UI element detection on web-app screenshots (YOLO + Faster R-CNN) with COCO/CVAT + Hugging Face dataset export."
+requires-python = ">=3.10"
+readme = "README.md"
+authors = [{name="N. Ismailova"}]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
